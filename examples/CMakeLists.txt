@@ -1,0 +1,1 @@
+add_rainbow_example(allocator)
