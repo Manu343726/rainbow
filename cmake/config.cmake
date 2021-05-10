@@ -1,6 +1,6 @@
 option(RAINBOW_INSTRUMENTATION "Build with profiling instrumentation enabled" OFF)
 option(RAINBOW_ASAN "Build with address sanitizer enabled" OFF)
-option(RAIBOW_LTO "Build with link time optimization" ON)
+option(RAINBOW_LTO "Build with link time optimization" ON)
 
 set(RAINBOW_ROOT_DIR "${PROJECT_SOURCE_DIR}")
 set(RAINBOW_INCLUDE_DIR "${RAINBOW_ROOT_DIR}/include")

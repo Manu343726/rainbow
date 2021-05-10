@@ -1,4 +1,7 @@
 #include <rainbow/memory/allocators/hierarchical.hpp>
+#ifndef NDEBUG
+#include <rainbow/iterator_traits.hpp>
+#endif // NDEBUG
 
 using namespace rainbow::memory;
 using namespace rainbow::memory::allocators;

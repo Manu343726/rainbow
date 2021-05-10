@@ -2,7 +2,6 @@
 #define RAINBOW_OBJECT_HPP_INCLUDED
 
 #include <cassert>
-#include <iterator>
 #include <rainbow/memory/allocator.hpp>
 #include <rainbow/type.hpp>
 #include <utility>
@@ -86,12 +85,6 @@ private:
     using Base = rainbow::memory::Block::Iterator;
 
 public:
-    using value_type        = T;
-    using reference         = T&;
-    using pointer           = T*;
-    using difference_type   = std::ptrdiff_t;
-    using iterator_category = std::bidirectional_iterator_tag;
-
     ObjectIterator(Base it) : Base{std::move(it)} {}
 
     T* operator->() const

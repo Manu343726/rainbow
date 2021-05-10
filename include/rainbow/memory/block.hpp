@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <rainbow/memory/aligned.hpp>
 
 namespace rainbow::memory
@@ -55,12 +54,6 @@ public:
     class Iterator
     {
     public:
-        using value_type        = Block;
-        using reference         = Block;
-        using pointer           = Block*;
-        using difference_type   = std::ptrdiff_t;
-        using iterator_category = std::bidirectional_iterator_tag;
-
         Iterator(const Block& subblock);
 
         Iterator& operator++();
