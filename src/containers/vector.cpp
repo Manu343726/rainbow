@@ -133,5 +133,6 @@ Vector::~Vector()
     {
         _type->destroyArray(storageInUse(), size());
         _allocator->free(_storage);
+        _storage = nullptr;
     }
 }

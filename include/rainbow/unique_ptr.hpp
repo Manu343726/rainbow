@@ -4,29 +4,70 @@
 #include <memory>
 #include <rainbow/memory/allocator.hpp>
 #include <rainbow/object.hpp>
+#include <rainbow/type.hpp>
 #include <type_traits>
 
 namespace rainbow
 {
 
-template<typename T>
+namespace raw
+{
+
 class UniquePtr
 {
 public:
+    UniquePtr() = default;
+    UniquePtr(std::nullptr_t);
+    UniquePtr(
+        rainbow::memory::Allocator& allocator, rainbow::raw::Object object);
+    UniquePtr(
+        rainbow::memory::Allocator& allocator,
+        rainbow::memory::Block      rawMemory);
+
+    UniquePtr(const UniquePtr& other) = delete;
+    UniquePtr(UniquePtr&& other);
+
+    UniquePtr& operator=(const UniquePtr& other) = delete;
+    UniquePtr& operator                          =(UniquePtr&& other);
+
+    virtual ~UniquePtr();
+
+    const rainbow::Type*        type() const;
+    rainbow::memory::Allocator& allocator() const;
+    rainbow::raw::Object        get() const;
+    rainbow::raw::Object        release();
+
+    bool operator==(const UniquePtr& other) const;
+    bool operator!=(const UniquePtr& other) const;
+    bool operator==(std::nullptr_t) const;
+    bool operator!=(std::nullptr_t) const;
+
+    explicit operator bool() const;
+
+private:
+    rainbow::raw::Object        _object    = nullptr;
+    rainbow::memory::Allocator* _allocator = nullptr;
+};
+
+} // namespace raw
+
+template<typename T>
+class UniquePtr : public rainbow::raw::UniquePtr
+{
+public:
     UniquePtr(rainbow::memory::Allocator& allocator, rainbow::Object<T> object)
-        : _object{std::move(object)}, _allocator{&allocator}
+        : rainbow::raw::UniquePtr{allocator, std::move(object)}
     {
     }
 
     UniquePtr() = default;
     UniquePtr(std::nullptr_t) : UniquePtr{} {}
+    UniquePtr(UniquePtr&& other) : rainbow::raw::UniquePtr{std::move(other)} {}
 
     template<typename U, typename = std::enable_if_t<std::is_base_of_v<T, U>>>
     UniquePtr(UniquePtr<U>&& pointer)
-        : _object{rainbow::Object<T>{pointer.object()}},
-          _allocator{&pointer.allocator()}
+        : UniquePtr{pointer.allocator(), pointer.release().template cast<T>()}
     {
-        pointer.release();
     }
 
     UniquePtr(const UniquePtr&) = delete;
@@ -35,113 +76,34 @@ public:
     template<typename U, typename = std::enable_if_t<std::is_base_of_v<T, U>>>
     UniquePtr& operator=(UniquePtr<U>&& other)
     {
-        release();
-
-        _allocator = &other.allocator();
-        _object    = rainbow::Object<T>(other.release());
-
-        return *this;
+        rainbow::raw::UniquePtr::operator=(UniquePtr{std::move(other)});
     }
 
     UniquePtr& operator=(UniquePtr&& other)
     {
-        release();
-
-        _object    = std::exchange(other._object, nullptr);
-        _allocator = std::exchange(other._allocator, nullptr);
-
+        rainbow::raw::UniquePtr::operator=(std::move(other));
         return *this;
-    }
-
-    ~UniquePtr()
-    {
-        release();
     }
 
     rainbow::Object<T> object() const
     {
-        return _object;
+        return rainbow::raw::UniquePtr::get();
     }
 
-    rainbow::memory::Allocator& allocator() const
+    rainbow::Object<T> release()
     {
-        return *_allocator;
+        return rainbow::raw::UniquePtr::release();
     }
 
     T* get() const
     {
-        return _object.get();
+        return object().get();
     }
 
     T* operator->() const
     {
         return get();
     }
-
-    operator bool() const
-    {
-        return not _object.isNull();
-    }
-
-    friend bool operator==(const UniquePtr<T>& lhs, const UniquePtr<T>& rhs)
-    {
-        return lhs._object == rhs._object;
-    }
-
-    friend bool operator!=(const UniquePtr<T>& lhs, const UniquePtr<T>& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    friend bool operator==(const UniquePtr<T>& lhs, const Object<T>& rhs)
-    {
-        return lhs._object == rhs;
-    }
-
-    friend bool operator!=(const UniquePtr<T>& lhs, const Object<T>& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    friend bool operator==(const UniquePtr<T>& lhs, T* rhs)
-    {
-        return lhs._object.aligned(alignof(T)).begin() == rhs;
-    }
-
-    friend bool operator!=(const UniquePtr<T>& lhs, T* rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    friend bool operator==(const UniquePtr<T>& lhs, std::nullptr_t)
-    {
-        return lhs._object == nullptr;
-    }
-
-    friend bool operator!=(const UniquePtr<T>& lhs, std::nullptr_t rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    Object<T> release()
-    {
-        _allocator = nullptr;
-
-        return std::exchange(_object, nullptr);
-    }
-
-    void reset()
-    {
-        if(_object != nullptr and _allocator != nullptr)
-        {
-            rainbow::delete_(*_allocator, _object);
-            release();
-        }
-    }
-
-private:
-    rainbow::Object<T>          _object    = nullptr;
-    rainbow::memory::Allocator* _allocator = nullptr;
 };
 
 template<typename T, typename... Args>

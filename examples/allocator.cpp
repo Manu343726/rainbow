@@ -5,6 +5,7 @@
 #include <rainbow/memory/allocators/fixed_size.hpp>
 #include <rainbow/memory/allocators/hierarchical.hpp>
 #include <rainbow/memory/allocators/malloc.hpp>
+#include <rainbow/memory/allocators/owning.hpp>
 #include <rainbow/memory/allocators/pool.hpp>
 #include <rainbow/object.hpp>
 #include <rainbow/shared_ptr.hpp>
@@ -52,17 +53,14 @@ int main()
         [](rainbow::memory::Allocator& uniquePtrAllocator,
            rainbow::memory::Allocator& parentAllocator)
             -> rainbow::UniquePtr<rainbow::memory::Allocator> {
-            if(const auto storage = parentAllocator.allocate((128 + 1) * 1024))
-            {
-                return rainbow::makeUnique<rainbow::memory::allocators::Pool>(
-                    uniquePtrAllocator,
-                    std::move(storage),
-                    128u,
-                    alignof(std::max_align_t),
-                    1024u);
-            }
+            rainbow::memory::allocators::Pool::Parameters params;
+            params.count        = 1024;
+            params.maxAlignment = alignof(std::max_align_t);
+            params.maxSize      = 128;
 
-            return nullptr;
+            return rainbow::memory::allocators::makeOwning<
+                rainbow::memory::allocators::Pool>(
+                uniquePtrAllocator, parentAllocator, params);
         }};
 
     rainbow::containers::Vector<Class> vector{fixedSize};
@@ -82,6 +80,7 @@ int main()
 
         if(not vector.push_back())
         {
+            /*
             std::cout << "push_back() error (allocator free space: "
                       << *vector.allocator().info().free
                       << " bytes, required: " << sizeof(Class)
@@ -89,6 +88,7 @@ int main()
                       << ")\n";
 
             std::exit(EXIT_FAILURE);
+            */
         }
     }
 }

@@ -2,6 +2,18 @@
 
 using namespace rainbow::memory;
 
+Block Allocator::allocate(const AllocationRequirements& requirements)
+{
+    if(requirements.alignment)
+    {
+        return allocateAligned(requirements.size, *requirements.alignment);
+    }
+    else
+    {
+        return allocate(requirements.size);
+    }
+}
+
 Block Allocator::allocate()
 {
     return nullptr;

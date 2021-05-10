@@ -77,7 +77,7 @@ Block Hierarchical::allocate(const std::size_t bytes)
         if(const auto block = allocator->allocate(bytes + sizeof(void*)))
         {
             rainbow::memory::bit_write(allocator.get(), block.begin());
-            return block;
+            return userBlock(block);
         }
     }
 
@@ -98,7 +98,7 @@ Block Hierarchical::allocateAligned(
                allocator->allocateAligned(bytes + sizeof(void*), boundary))
         {
             rainbow::memory::bit_write(allocator.get(), block.begin());
-            return block;
+            return userBlock(block);
         }
     }
 
@@ -119,7 +119,7 @@ Block Hierarchical::reallocate(
                allocator->reallocate(original, bytes + sizeof(void*)))
         {
             rainbow::memory::bit_write(allocator.get(), block.begin());
-            return block;
+            return userBlock(block);
         }
     }
 
@@ -142,7 +142,7 @@ Block Hierarchical::reallocateAligned(
                original, bytes + sizeof(void*), boundary))
         {
             rainbow::memory::bit_write(allocator.get(), block.begin());
-            return block;
+            return userBlock(block);
         }
     }
 
@@ -154,9 +154,18 @@ Block Hierarchical::reallocateAligned(
     return nullptr;
 }
 
-bool Hierarchical::free(const rainbow::memory::Block& block)
+bool Hierarchical::free(const rainbow::memory::Block& userBlock)
 {
-    auto allocator = rainbow::memory::bit_cast<Allocator*>(block.begin());
+    assert(userBlock != nullptr);
+    const auto block     = allocatedBlock(userBlock);
+    auto       allocator = rainbow::memory::bit_cast<Allocator*>(block.begin());
+
+    assert(std::any_of(
+        _childrenAllocators.view().begin(),
+        _childrenAllocators.view().end(),
+        [=](const auto& allocatorPtr) {
+            return allocatorPtr.get() == allocator;
+        }));
 
     return allocator->free(block);
 }
@@ -173,4 +182,16 @@ bool Hierarchical::grow()
     }
 
     return false;
+}
+
+Block Hierarchical::userBlock(const Block& allocatedBlock)
+{
+    return allocatedBlock.shrinkFromBegin(sizeof(void*));
+}
+
+Block Hierarchical::allocatedBlock(const Block& userBlock)
+{
+    return {
+        arithmeticPointer(userBlock.begin()) - sizeof(void*),
+        userBlock.size() + sizeof(void*)};
 }

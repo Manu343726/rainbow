@@ -2,26 +2,70 @@
 #define RAINBOW_OBJECT_HPP_INCLUDED
 
 #include <cassert>
+#include <iterator>
 #include <rainbow/memory/allocator.hpp>
+#include <rainbow/type.hpp>
 #include <utility>
 
 namespace rainbow
 {
 
 template<typename T>
+class Object;
+
+namespace raw
+{
+
 class Object : public rainbow::memory::Block
 {
 public:
-    Object() : Object{nullptr} {}
-    Object(std::nullptr_t) : rainbow::memory::Block{nullptr} {}
-    Object(const rainbow::memory::Block& block)
-        : rainbow::memory::Block{block.begin(), block.size()}
+    Object();
+    Object(std::nullptr_t);
+    Object(
+        const rainbow::memory::Block& block,
+        const rainbow::Type*          type = rainbow::trivialType());
+
+    template<typename T>
+    Object(const rainbow::Object<T>& object) : Object{object, object.type()}
     {
+    }
+
+    const rainbow::Type*   type() const;
+    rainbow::memory::Block get() const;
+
+private:
+    const rainbow::Type* _type;
+};
+
+} // namespace raw
+
+template<typename T>
+class Object : public rainbow::raw::Object
+{
+public:
+    Object() : Object{nullptr} {}
+    Object(std::nullptr_t) : rainbow::raw::Object{nullptr} {}
+    Object(const rainbow::raw::Object& object) : rainbow::raw::Object{object}
+    {
+        assert(object.type() == rainbow::type_of<T>());
+    }
+    Object(const rainbow::memory::Block& block)
+        : rainbow::raw::Object{block, rainbow::type_of<T>()}
+    {
+    }
+
+    template<
+        typename U,
+        typename = std::enable_if_t<
+            std::is_base_of_v<T, U> or std::is_base_of_v<U, T>>>
+    Object<U> cast() const
+    {
+        return {static_cast<const rainbow::memory::Block&>(*this)};
     }
 
     T* get() const
     {
-        return reinterpret_cast<T*>(aligned(alignof(std::decay_t<T>)).begin());
+        return reinterpret_cast<T*>(rainbow::raw::Object::get().begin());
     }
 
     T* operator->() const
@@ -42,6 +86,12 @@ private:
     using Base = rainbow::memory::Block::Iterator;
 
 public:
+    using value_type        = T;
+    using reference         = T&;
+    using pointer           = T*;
+    using difference_type   = std::ptrdiff_t;
+    using iterator_category = std::bidirectional_iterator_tag;
+
     ObjectIterator(Base it) : Base{std::move(it)} {}
 
     T* operator->() const
@@ -106,19 +156,11 @@ private:
 template<typename T, typename... Args>
 Object<T> construct(const rainbow::memory::Block& block, Args&&... args)
 {
-    assert(block.isAligned(alignof(T)));
-    assert(block.size() == sizeof(T));
-
-    new(block.begin()) T{std::forward<Args>(args)...};
-
+    rainbow::memory::construct<T>(block, std::forward<Args>(args)...);
     return {block};
 }
 
-template<typename T>
-void destroy(const Object<T>& object)
-{
-    object->~T();
-}
+void destroy(const rainbow::raw::Object& object);
 
 template<typename T, typename... Args>
 Object<T> new_(rainbow::memory::Allocator& allocator, Args&&... args)

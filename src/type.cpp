@@ -2,6 +2,27 @@
 
 using namespace rainbow;
 
+namespace rainbow
+{
+const Type* trivialType()
+{
+    constexpr auto noop_unary = +[](const rainbow::memory::Block&) {};
+    constexpr auto noop_binary =
+        +[](const rainbow::memory::Block&, const rainbow::memory::Block&) {};
+    static constexpr Type type{
+        1,
+        1,
+        {noop_unary,
+         noop_binary,
+         noop_binary,
+         noop_binary,
+         noop_binary,
+         noop_unary}};
+
+    return &type;
+}
+} // namespace rainbow
+
 void Type::defaultConstruct(const rainbow::memory::Block& object) const
 {
     assert(isDefaultConstructible());
@@ -20,9 +41,9 @@ void Type::copy(
 void Type::move(
     const rainbow::memory::Block& from, const rainbow::memory::Block& to) const
 {
-    assert(isCopyConstructible());
+    assert(isMoveConstructible());
 
-    _specialFunctions.copy(from, to);
+    _specialFunctions.move(from, to);
 }
 
 void Type::copyAssign(

@@ -4,8 +4,9 @@
 #include <cassert>
 #include <cstdint>
 #include <rainbow/memory/block.hpp>
-#include <rainbow/object.hpp>
+#include <rainbow/memory/object_operations.hpp>
 #include <type_traits>
+#include <utility>
 
 namespace rainbow
 {
@@ -125,78 +126,22 @@ private:
     SpecialFunctions _specialFunctions;
 };
 
-namespace detail
-{
-
-template<typename T>
-void defaultConstruct(const rainbow::memory::Block& object)
-{
-    if constexpr(std::is_default_constructible_v<T>)
-    {
-        rainbow::construct<T>(object);
-    }
-}
-
-template<typename T>
-void copy(const rainbow::memory::Block& from, const rainbow::memory::Block& to)
-{
-    if constexpr(std::is_copy_constructible_v<T>)
-    {
-        rainbow::construct<T>(to, *rainbow::Object<T>{from}.get());
-    }
-}
-
-template<typename T>
-void move(const rainbow::memory::Block& from, const rainbow::memory::Block& to)
-{
-    if constexpr(std::is_move_constructible_v<T>)
-    {
-        rainbow::construct<T>(to, std::move(*rainbow::Object<T>{from}.get()));
-    }
-}
-
-template<typename T>
-void copyAssign(
-    const rainbow::memory::Block& from, const rainbow::memory::Block& to)
-{
-    if constexpr(std::is_copy_assignable_v<T>)
-    {
-        *rainbow::Object<T>{to}.get() = *rainbow::Object<T>{from}.get();
-    }
-}
-
-template<typename T>
-void moveAssign(
-    const rainbow::memory::Block& from, const rainbow::memory::Block& to)
-{
-    if constexpr(std::is_move_assignable_v<T>)
-    {
-        *rainbow::Object<T>{to}.get() =
-            std::move(*rainbow::Object<T>{from}.get());
-    }
-}
-
-template<typename T>
-void destroy(const rainbow::memory::Block& object)
-{
-    rainbow::destroy<T>(object);
-}
-
-} // namespace detail
-
 template<typename T>
 constexpr Type type()
 {
     return {
         sizeof(T),
         alignof(T),
-        {(std::is_default_constructible_v<T> ? detail::defaultConstruct<T>
-                                             : nullptr),
-         (std::is_copy_constructible_v<T> ? detail::copy<T> : nullptr),
-         (std::is_move_constructible_v<T> ? detail::move<T> : nullptr),
-         (std::is_copy_assignable_v<T> ? detail::copyAssign<T> : nullptr),
-         (std::is_move_assignable_v<T> ? detail::moveAssign<T> : nullptr),
-         detail::destroy<T>}};
+        {(std::is_default_constructible_v<T>
+              ? rainbow::memory::defaultConstruct<T>
+              : nullptr),
+         (std::is_copy_constructible_v<T> ? rainbow::memory::copy<T> : nullptr),
+         (std::is_move_constructible_v<T> ? rainbow::memory::move<T> : nullptr),
+         (std::is_copy_assignable_v<T> ? rainbow::memory::copyAssign<T>
+                                       : nullptr),
+         (std::is_move_assignable_v<T> ? rainbow::memory::moveAssign<T>
+                                       : nullptr),
+         rainbow::memory::destroy<T>}};
 }
 
 template<typename T>
@@ -205,6 +150,8 @@ const Type* type_of()
     static constexpr Type type = rainbow::type<T>();
     return &type;
 }
+
+const Type* trivialType();
 
 } // namespace rainbow
 

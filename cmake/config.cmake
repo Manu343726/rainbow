@@ -1,5 +1,6 @@
 option(RAINBOW_INSTRUMENTATION "Build with profiling instrumentation enabled" OFF)
 option(RAINBOW_ASAN "Build with address sanitizer enabled" OFF)
+option(RAIBOW_LTO "Build with link time optimization" ON)
 
 set(RAINBOW_ROOT_DIR "${PROJECT_SOURCE_DIR}")
 set(RAINBOW_INCLUDE_DIR "${RAINBOW_ROOT_DIR}/include")
@@ -28,7 +29,7 @@ endif()
 macro(configure_rainbow_target TARGET)
     set_target_properties(${TARGET} PROPERTIES
         CXX_STANDARD ${RAINBOW_CXX_STANDARD}
-        INTERPROCEDURAL_OPTIMIZATION ON)
+        INTERPROCEDURAL_OPTIMIZATION ${RAINBOW_LTO})
 
     if(NOT MSVC)
         target_compile_options(${TARGET} PRIVATE ${RAINBOW_GCC_WARNINGS} ${RAINBOW_GCC_OPTIONS})

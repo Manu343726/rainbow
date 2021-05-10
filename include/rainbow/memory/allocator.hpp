@@ -10,6 +10,12 @@
 namespace rainbow::memory
 {
 
+struct AllocationRequirements
+{
+    std::size_t                size;
+    std::optional<std::size_t> alignment;
+};
+
 class Allocator
 {
 public:
@@ -38,6 +44,8 @@ public:
     virtual Features features() const = 0;
     virtual Info     info() const     = 0;
 
+    rainbow::memory::Block
+        allocate(const rainbow::memory::AllocationRequirements& requirements);
     virtual rainbow::memory::Block allocate();
     virtual rainbow::memory::Block allocate(const std::size_t bytes);
     virtual rainbow::memory::Block

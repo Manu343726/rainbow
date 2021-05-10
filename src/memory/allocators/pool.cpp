@@ -7,22 +7,21 @@
 using namespace rainbow::memory;
 using namespace rainbow::memory::allocators;
 
-Pool::Pool(
-    Block                              storage,
-    const std::size_t                  maxSize,
-    [[maybe_unused]] const std::size_t maxAlignment,
-    const std::size_t                  count)
-    : _nextBlock{storage.begin(), maxSize},
-      _blockSize{maxSize + sizeof(void*)},
-      _maxAlignment{maxAlignment},
+Pool::Pool(Block storage, const Parameters& parameters)
+    : _nextBlock{storage.begin(), parameters.maxSize},
+      _blockSize{parameters.maxSize + sizeof(void*)},
+      _maxAlignment{parameters.maxAlignment},
       _storage{std::move(storage)}
 {
-    assert(_storage.size() >= _blockSize * count);
+    assert(_storage.size() >= storageRequirements(parameters).size);
+    assert(
+        not storageRequirements(parameters).alignment or
+        _storage.isAligned(*storageRequirements(parameters).alignment));
 
     char* current = arithmeticPointer(_nextBlock.begin());
     char* next    = current + _blockSize;
 
-    for(std::size_t i = 1; i < count; ++i)
+    for(std::size_t i = 1; i < parameters.count; ++i)
     {
         bit_write(next, current);
         current = next;
@@ -30,6 +29,16 @@ Pool::Pool(
     }
 
     bit_write(nullptr, current);
+}
+
+AllocationRequirements
+    Pool::Pool::storageRequirements(const Parameters& parameters)
+{
+    AllocationRequirements result;
+    result.size      = (parameters.maxSize + sizeof(void*)) * parameters.count;
+    result.alignment = parameters.maxAlignment;
+
+    return result;
 }
 
 Allocator::Features Pool::features() const

@@ -10,7 +10,9 @@ target_sources(rainbow PRIVATE
     memory/allocators/hierarchical.cpp
     views/vector.cpp
     containers/vector.cpp
-    type.cpp)
+    type.cpp
+    object.cpp
+    unique_ptr.cpp)
 
 find_package(Threads REQUIRED)
 

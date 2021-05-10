@@ -12,16 +12,17 @@ public:
     static constexpr Features FEATURES =
         Features::Allocate | Features::AllocateAligned | Features::Free;
 
-    Pool(
-        rainbow::memory::Block storage,
-        const std::size_t      maxSize,
-        const std::size_t      maxAlignment,
-        const std::size_t      count);
+    struct Parameters
+    {
+        std::size_t maxSize;
+        std::size_t maxAlignment;
+        std::size_t count;
+    };
 
-    static std::size_t storageSize(
-        const std::size_t maxSize,
-        const std::size_t maxAlignment,
-        const std::size_t count);
+    Pool(rainbow::memory::Block storage, const Parameters& parameters);
+
+    static rainbow::memory::AllocationRequirements
+        storageRequirements(const Parameters& parameters);
 
     Features features() const override;
     Info     info() const override;

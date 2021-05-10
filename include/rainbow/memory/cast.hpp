@@ -4,9 +4,22 @@
 #include <cassert>
 #include <cstring>
 #include <rainbow/memory/aligned.hpp>
+#include <rainbow/memory/block.hpp>
 
 namespace rainbow::memory
 {
+
+template<typename T>
+rainbow::memory::Block object(const rainbow::memory::Block& block)
+{
+    return block.aligned(alignof(T)).left(sizeof(T));
+}
+
+template<typename T>
+T* object_cast(const rainbow::memory::Block& block)
+{
+    return reinterpret_cast<T*>(object<T>(block).begin());
+}
 
 template<typename T>
 T bit_cast(void* pointer)

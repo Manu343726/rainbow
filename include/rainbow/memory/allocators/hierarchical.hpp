@@ -49,6 +49,11 @@ private:
     rainbow::memory::Allocator* _uniquePtrAllocator;
     ChildAllocatorFactory       _childAllocatorFactory;
 
+    static rainbow::memory::Block
+        userBlock(const rainbow::memory::Block& allocatedBlock);
+    static rainbow::memory::Block
+        allocatedBlock(const rainbow::memory::Block& userBlock);
+
     bool grow();
 };
 

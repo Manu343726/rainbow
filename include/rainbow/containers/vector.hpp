@@ -16,7 +16,12 @@ class Vector
 {
 public:
     Vector(const rainbow::Type* type, rainbow::memory::Allocator& allocator);
-    ~Vector();
+    Vector(const Vector&) = delete;
+    Vector(Vector&&)      = delete;
+    Vector& operator=(const Vector&) = delete;
+    Vector& operator=(Vector&&) = delete;
+
+    virtual ~Vector();
 
     rainbow::memory::Allocator& allocator() const;
 
