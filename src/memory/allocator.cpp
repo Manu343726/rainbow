@@ -1,52 +1,74 @@
+#include <rainbow/memory/aligned.hpp>
 #include <rainbow/memory/allocator.hpp>
 
 using namespace rainbow::memory;
 
-Block Allocator::allocate(const AllocationRequirements& requirements)
+std::size_t AllocationRequirements::totalSize() const
 {
-    if(requirements.alignment)
+    return nextAlignedSize(size, alignment) + extraSize;
+}
+
+AllocationRequirements&
+    AllocationRequirements::operator+=(const AllocationRequirements& other)
+{
+    size += other.size;
+    extraSize += other.extraSize;
+    alignment = std::max(alignment, other.alignment);
+
+    return *this;
+}
+
+AllocationRequirements Allocator::minimalAllocationRequirements() const
+{
+    return {};
+}
+
+Allocation Allocator::allocate(const AllocationRequirements& requirements)
+{
+    if(requirements.alignment > 1)
     {
-        return allocateAligned(requirements.size, *requirements.alignment);
+        return allocateAligned(
+            requirements.totalSize(), requirements.alignment);
     }
     else
     {
-        return allocate(requirements.size);
+        return allocate(requirements.totalSize());
     }
 }
 
-Block Allocator::allocate()
+Allocation Allocator::allocate()
 {
-    return nullptr;
+    return AllocationResult::NotSupported;
 }
 
-Block Allocator::allocate([[maybe_unused]] const std::size_t bytes)
+Allocation Allocator::allocate([[maybe_unused]] const std::size_t bytes)
 {
-    return nullptr;
+    return AllocationResult::NotSupported;
 }
 
-Block Allocator::allocateAligned(
+Allocation Allocator::allocateAligned(
     [[maybe_unused]] const std::size_t bytes,
     [[maybe_unused]] const std::size_t boundary)
 {
-    return nullptr;
+    return allocate(bytes + alignof(std::max_align_t) - boundary);
 }
 
-Block Allocator::reallocate(
+Allocation Allocator::reallocate(
     [[maybe_unused]] const Block&      originalBlock,
     [[maybe_unused]] const std::size_t bytes)
 {
-    return nullptr;
+    return AllocationResult::NotSupported;
 }
 
-Block Allocator::reallocateAligned(
+Allocation Allocator::reallocateAligned(
     [[maybe_unused]] const Block&      originalBlock,
     [[maybe_unused]] const std::size_t bytes,
     [[maybe_unused]] const std::size_t boundary)
 {
-    return nullptr;
+    return AllocationResult::NotSupported;
 }
 
-bool Allocator::free([[maybe_unused]] const Block& block)
+Deallocation Allocator::free([[maybe_unused]] const Block& block)
 {
-    return false;
+    return DeallocationResult::NotSupported;
 }

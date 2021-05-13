@@ -16,13 +16,14 @@ public:
     Features features() const override;
     Info     info() const override;
 
-    rainbow::memory::Block allocate(const std::size_t bytes) override;
-    rainbow::memory::Block allocateAligned(
+    rainbow::memory::Allocation allocate(const std::size_t bytes) override;
+    rainbow::memory::Allocation allocateAligned(
         const std::size_t bytes, const std::size_t boundary) override;
-    rainbow::memory::Block reallocate(
+    rainbow::memory::Allocation reallocate(
         const rainbow::memory::Block& original,
         const std::size_t             bytes) override;
-    bool free(const rainbow::memory::Block& block) override;
+    rainbow::memory::Deallocation
+        free(const rainbow::memory::Block& block) override;
 };
 
 Malloc& malloc();

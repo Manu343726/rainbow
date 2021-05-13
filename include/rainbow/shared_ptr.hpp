@@ -4,6 +4,7 @@
 #include <rainbow/locks.hpp>
 #include <rainbow/memory/allocator.hpp>
 #include <rainbow/object.hpp>
+#include <rainbow/object/new.hpp>
 
 namespace rainbow
 {
@@ -18,7 +19,7 @@ public:
 
     template<typename... Args>
     SharedPtr(rainbow::memory::Allocator* allocator, Args&&... args)
-        : _controlBlock{rainbow::new_<ControlBlock>(
+        : _controlBlock{rainbow::object::new_<ControlBlock>(
               *allocator, std::forward<Args>(args)...)},
           _allocator{allocator}
     {
@@ -121,7 +122,7 @@ private:
     {
         if(_controlBlock and --_controlBlock->owners == 0)
         {
-            rainbow::delete_(*_allocator, _controlBlock);
+            rainbow::object::delete_(*_allocator, _controlBlock);
             _controlBlock = nullptr;
         }
     }

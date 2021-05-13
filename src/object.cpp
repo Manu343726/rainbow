@@ -5,7 +5,7 @@ using namespace rainbow::memory;
 
 
 Object::Object() : Object{nullptr} {}
-Object::Object(std::nullptr_t) : Object{nullptr, nullptr} {}
+Object::Object(std::nullptr_t) : Object{nullptr, rainbow::trivialType()} {}
 Object::Object(const Block& block, const rainbow::Type* type)
     : Block{block}, _type{type}
 {

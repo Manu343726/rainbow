@@ -1,12 +1,16 @@
+#include <array>
+#include <csignal>
 #include <cstddef>
 #include <cstring>
 #include <iostream>
 #include <rainbow/containers/vector.hpp>
+#include <rainbow/memory/allocators/committed_virtual_memory.hpp>
 #include <rainbow/memory/allocators/fixed_size.hpp>
 #include <rainbow/memory/allocators/hierarchical.hpp>
 #include <rainbow/memory/allocators/malloc.hpp>
 #include <rainbow/memory/allocators/owning.hpp>
 #include <rainbow/memory/allocators/pool.hpp>
+#include <rainbow/memory/allocators/virtual_memory.hpp>
 #include <rainbow/object.hpp>
 #include <rainbow/shared_ptr.hpp>
 #include <rainbow/unique_ptr.hpp>
@@ -37,58 +41,53 @@ public:
 
 void play(rainbow::memory::Allocator& allocator)
 {
-    const auto object = rainbow::new_<Class>(allocator);
+    const auto object = rainbow::object::new_<Class>(allocator);
     object->world();
-    rainbow::delete_(allocator, object);
+    rainbow::object::delete_(allocator, object);
 }
 
 int main()
 {
+    std::signal(SIGINT, std::exit);
+
     char                                   storage[256];
     rainbow::memory::allocators::FixedSize fixedSize{
         rainbow::memory::Block{storage}};
+    rainbow::memory::allocators::CommittedVirtualMemory<
+        rainbow::memory::allocators::FixedSize>
+        lazyFixedSize{rainbow::memory::reserveVirtualMemory(1024)};
+
+    const auto poolFactory = [](rainbow::memory::Allocator& uniquePtrAllocator,
+                                rainbow::memory::Allocator& parentAllocator,
+                                rainbow::memory::Allocator& managerAllocator)
+        -> rainbow::UniquePtrAllocation<rainbow::memory::Allocator> {
+        rainbow::memory::allocators::Pool::Parameters params;
+        params.count        = 1024;
+        params.maxAlignment = 1;
+        params.maxSize      = 1024;
+
+        return rainbow::memory::allocators::makeOwningThroughManager<
+            rainbow::memory::allocators::Pool>(
+            uniquePtrAllocator,
+            parentAllocator,
+            managerAllocator,
+            rainbow::memory::allocators::Pool::adaptParametersToRequirements(
+                params, &parentAllocator, &managerAllocator));
+    };
 
     rainbow::memory::allocators::Hierarchical hierarchical{
-        rainbow::memory::allocators::malloc(),
-        [](rainbow::memory::Allocator& uniquePtrAllocator,
-           rainbow::memory::Allocator& parentAllocator)
-            -> rainbow::UniquePtr<rainbow::memory::Allocator> {
-            rainbow::memory::allocators::Pool::Parameters params;
-            params.count        = 1024;
-            params.maxAlignment = alignof(std::max_align_t);
-            params.maxSize      = 128;
+        rainbow::memory::allocators::virtualMemory(), poolFactory};
 
-            return rainbow::memory::allocators::makeOwning<
-                rainbow::memory::allocators::Pool>(
-                uniquePtrAllocator, parentAllocator, params);
-        }};
-
-    rainbow::containers::Vector<Class> vector{fixedSize};
-
-    vector.resize(2);
-
-    for(const auto& object : vector.view())
+    for(int i = 0; i < 1000000000; ++i)
     {
-        std::cout << "[" << object._hello << object._world << "]";
-    }
+        using Type  = std::array<char, 1024>;
+        auto result = rainbow::makeUnique<Type>(hierarchical);
 
-    // play(malloc);
-
-    for(int i = 0; i < 10000; ++i)
-    {
-        rainbow::makeUnique<int>(hierarchical, 42);
-
-        if(not vector.push_back())
+        if(not result)
         {
-            /*
-            std::cout << "push_back() error (allocator free space: "
-                      << *vector.allocator().info().free
-                      << " bytes, required: " << sizeof(Class)
-                      << " bytes, alignment required: " << alignof(Class)
-                      << ")\n";
-
             std::exit(EXIT_FAILURE);
-            */
         }
+
+        result.release();
     }
 }

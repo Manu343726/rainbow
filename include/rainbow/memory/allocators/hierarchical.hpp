@@ -15,9 +15,10 @@ class Hierarchical final : public rainbow::memory::Allocator
 {
 public:
     using ChildAllocatorFactory =
-        std::function<rainbow::UniquePtr<rainbow::memory::Allocator>(
+        std::function<rainbow::UniquePtrAllocation<rainbow::memory::Allocator>(
             rainbow::memory::Allocator& /* uniquePtrAllocator */,
-            rainbow::memory::Allocator& /* parentAllocator */)>;
+            rainbow::memory::Allocator& /* parentAllocator*/,
+            rainbow::memory::Allocator& /* managerAllocator*/)>;
 
     Hierarchical(
         rainbow::memory::Allocator& parentAllocator,
@@ -27,20 +28,22 @@ public:
         rainbow::memory::Allocator& metadataNodeAllocator =
             rainbow::memory::allocators::malloc());
 
+    AllocationRequirements minimalAllocationRequirements() const override;
     Features               features() const override;
     Info                   info() const override;
-    rainbow::memory::Block allocate(const std::size_t bytes) override;
-    rainbow::memory::Block allocateAligned(
+
+    rainbow::memory::Allocation allocate(const std::size_t bytes) override;
+    rainbow::memory::Allocation allocateAligned(
         const std::size_t bytes, const std::size_t boundary) override;
-    rainbow::memory::Block reallocate(
+    rainbow::memory::Allocation reallocate(
         const rainbow::memory::Block& original,
         const std::size_t             bytes) override;
-
-    rainbow::memory::Block reallocateAligned(
+    rainbow::memory::Allocation reallocateAligned(
         const rainbow::memory::Block& original,
         const std::size_t             bytes,
         const std::size_t             boundary) override;
-    bool free(const rainbow::memory::Block& block) override;
+    rainbow::memory::Deallocation
+        free(const rainbow::memory::Block& block) override;
 
 private:
     rainbow::containers::Vector<rainbow::UniquePtr<rainbow::memory::Allocator>>
@@ -54,7 +57,7 @@ private:
     static rainbow::memory::Block
         allocatedBlock(const rainbow::memory::Block& userBlock);
 
-    bool grow();
+    rainbow::memory::AllocationResult grow();
 };
 
 } // namespace rainbow::memory::allocators

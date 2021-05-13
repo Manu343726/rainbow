@@ -46,7 +46,7 @@ public:
     Object(std::nullptr_t) : rainbow::raw::Object{nullptr} {}
     Object(const rainbow::raw::Object& object) : rainbow::raw::Object{object}
     {
-        assert(object.type() == rainbow::type_of<T>());
+        assert(object == nullptr or object.type() == rainbow::type_of<T>());
     }
     Object(const rainbow::memory::Block& block)
         : rainbow::raw::Object{block, rainbow::type_of<T>()}
@@ -78,74 +78,6 @@ public:
     }
 };
 
-template<typename T>
-class ObjectIterator : public rainbow::memory::Block::Iterator
-{
-private:
-    using Base = rainbow::memory::Block::Iterator;
-
-public:
-    ObjectIterator(Base it) : Base{std::move(it)} {}
-
-    T* operator->() const
-    {
-        return Object<T>{Base::operator*()}.get();
-    }
-
-    T& operator*() const
-    {
-        return *operator->();
-    }
-
-    ObjectIterator& operator++()
-    {
-        Base::operator++();
-        return *this;
-    }
-
-    ObjectIterator operator++(int)
-    {
-        ObjectIterator result = *this;
-        ++(*this);
-        return result;
-    }
-
-    ObjectIterator& operator--()
-    {
-        Base::operator--();
-        return *this;
-    }
-
-    ObjectIterator operator--(int)
-    {
-        ObjectIterator result = *this;
-        --(*this);
-        return result;
-    }
-};
-
-template<typename T>
-class ObjectRange
-{
-public:
-    ObjectRange(rainbow::memory::Block::Range range) : _range{std::move(range)}
-    {
-    }
-
-    ObjectIterator<T> begin() const
-    {
-        return {_range.begin()};
-    }
-
-    ObjectIterator<T> end() const
-    {
-        return {_range.end()};
-    }
-
-private:
-    rainbow::memory::Block::Range _range;
-};
-
 template<typename T, typename... Args>
 Object<T> construct(const rainbow::memory::Block& block, Args&&... args)
 {
@@ -154,27 +86,6 @@ Object<T> construct(const rainbow::memory::Block& block, Args&&... args)
 }
 
 void destroy(const rainbow::raw::Object& object);
-
-template<typename T, typename... Args>
-Object<T> new_(rainbow::memory::Allocator& allocator, Args&&... args)
-{
-    if(auto block = allocator.allocateAligned(sizeof(T), alignof(T)))
-    {
-        rainbow::construct<T>(
-            block.aligned(alignof(T)), std::forward<Args>(args)...);
-
-        return {block};
-    }
-
-    return {nullptr};
-}
-
-template<typename T>
-bool delete_(rainbow::memory::Allocator& allocator, const Object<T>& object)
-{
-    rainbow::destroy(object);
-    return allocator.free(object);
-}
 
 } // namespace rainbow
 

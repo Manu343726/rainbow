@@ -16,9 +16,14 @@ Malloc& malloc()
 }
 } // namespace rainbow::memory::allocators
 
-Block Malloc::allocate(const std::size_t bytes)
+Allocation Malloc::allocate(const std::size_t bytes)
 {
-    return {std::malloc(bytes), bytes};
+    if(Block block{std::malloc(bytes), bytes})
+    {
+        return block;
+    }
+
+    return AllocationResult::NoSpaceLeft;
 }
 
 Allocator::Info Malloc::info() const
@@ -26,26 +31,42 @@ Allocator::Info Malloc::info() const
     return {};
 }
 
-Block Malloc::allocateAligned(
-    const std::size_t bytes, const std::size_t boundary)
+Allocation
+    Malloc::allocateAligned(const std::size_t bytes, const std::size_t boundary)
 {
-    Block result{std::aligned_alloc(boundary, bytes), bytes};
+    if(Block result{std::aligned_alloc(boundary, bytes), bytes})
+    {
+        if(not result.isAligned(boundary))
+        {
+            return AllocationResult::CannotAlign;
+        }
 
-    assert(result.isNull() xor result.isAligned(boundary));
-    assert(result.isNull() xor (result == result.aligned(boundary, bytes)));
+        return result;
+    }
 
-    return result;
+    return AllocationResult::NoSpaceLeft;
 }
 
-Block Malloc::reallocate(const Block& original, const std::size_t bytes)
+Allocation Malloc::reallocate(const Block& original, const std::size_t bytes)
 {
-    return {std::realloc(original.begin(), bytes), bytes};
+    if(Block block{std::realloc(original.begin(), bytes), bytes})
+    {
+        return block;
+    }
+
+    return AllocationResult::NoSpaceLeft;
 }
 
-bool Malloc::free(const rainbow::memory::Block& block)
+Deallocation Malloc::free(const rainbow::memory::Block& block)
 {
+    if(block.isNull())
+    {
+        return DeallocationResult::UnknownNode;
+    }
+
     std::free(block.begin());
-    return not block.isNull();
+
+    return DeallocationResult::Ok;
 }
 
 Allocator::Features Malloc::features() const

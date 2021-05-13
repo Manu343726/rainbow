@@ -3,6 +3,7 @@
 
 #include <rainbow/memory/allocator.hpp>
 #include <rainbow/object.hpp>
+#include <rainbow/object/allocation.hpp>
 #include <rainbow/type.hpp>
 #include <rainbow/views/vector.hpp>
 
@@ -25,13 +26,13 @@ public:
 
     rainbow::memory::Allocator& allocator() const;
 
-    std::size_t size() const;
-    bool        empty() const;
-    std::size_t capacity() const;
-    bool        reserve(const std::size_t size);
-    bool        resize(const std::size_t size);
+    std::size_t                       size() const;
+    bool                              empty() const;
+    std::size_t                       capacity() const;
+    rainbow::memory::AllocationResult reserve(const std::size_t size);
+    rainbow::memory::AllocationResult resize(const std::size_t size);
 
-    rainbow::memory::Block      push_back();
+    rainbow::memory::Allocation push_back();
     bool                        pop_back();
     rainbow::views::raw::Vector view() const;
 
@@ -61,17 +62,12 @@ public:
     }
 
     template<typename... Args>
-    T* push_back(Args&&... args)
+    rainbow::object::Allocation<T> push_back(Args&&... args)
     {
-        if(const auto block = raw::Vector::push_back())
-        {
-            return rainbow::construct<T>(block, std::forward<Args>(args)...)
-                .get();
-        }
-        else
-        {
-            return nullptr;
-        }
+        RAINBOW_RESULT_TRY(pushBackResult, raw::Vector::push_back());
+
+        return rainbow::construct<T>(
+            pushBackResult, std::forward<Args>(args)...);
     }
 
     rainbow::views::Vector<T> view() const

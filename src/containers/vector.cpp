@@ -6,6 +6,10 @@ using namespace rainbow::containers::raw;
 Vector::Vector(const rainbow::Type* type, rainbow::memory::Allocator& allocator)
     : _size{0}, _type{std::move(type)}, _allocator{&allocator}
 {
+    assert(
+        (_allocator->features() &
+         memory::Allocator::Features::AllocateAligned) and
+        _allocator->features() & memory::Allocator::Features::Free);
 }
 
 rainbow::memory::Allocator& Vector::allocator() const
@@ -38,11 +42,11 @@ rainbow::memory::Block Vector::storageInUse() const
     return alignedStorage().left(_size * _type->size());
 }
 
-bool Vector::reserve(const std::size_t size)
+rainbow::memory::AllocationResult Vector::reserve(const std::size_t size)
 {
     if(size <= capacity())
     {
-        return true;
+        return rainbow::memory::AllocationResult::Ok;
     }
 
     float growRate = 1.5f;
@@ -52,28 +56,27 @@ bool Vector::reserve(const std::size_t size)
         growRate = 1.0f;
     }
 
-    if(const auto newStorage = _allocator->allocateAligned(
-           growRate * size * _type->size(), _type->alignment()))
-    {
-        if(const auto oldStorage = std::exchange(_storage, newStorage))
-        {
-            _type->moveArray(
-                oldStorage.aligned(_type->alignment()),
-                newStorage.aligned(_type->alignment()),
-                _size);
+    RAINBOW_RESULT_TRY(
+        newStorageAllocation,
+        _allocator->allocateAligned(
+            growRate * size * _type->size(), _type->alignment()));
 
-            return _allocator->free(oldStorage);
-        }
-
-        return true;
-    }
-    else
+    if(const auto oldStorage = std::exchange(_storage, newStorageAllocation))
     {
-        return false;
+        _type->moveArray(
+            oldStorage.aligned(_type->alignment()),
+            newStorageAllocation.aligned(_type->alignment()),
+            _size);
+
+        return _allocator->free(oldStorage)
+                   ? rainbow::memory::AllocationResult::Ok
+                   : rainbow::memory::AllocationResult::CannotFreeOld;
     }
+
+    return rainbow::memory::AllocationResult::Ok;
 }
 
-bool Vector::resize(const std::size_t size)
+rainbow::memory::AllocationResult Vector::resize(const std::size_t size)
 {
     if(size < _size and _storage)
     {
@@ -82,18 +85,15 @@ bool Vector::resize(const std::size_t size)
 
         _size = size;
 
-        return true;
+        return rainbow::memory::AllocationResult::Ok;
     }
     else if(size == _size)
     {
-        return true;
+        return rainbow::memory::AllocationResult::Ok;
     }
     else
     {
-        if(not reserve(size))
-        {
-            return false;
-        }
+        RAINBOW_RESULT_TRY(reserve(size));
 
         _type->defaultConstructArray(
             alignedStorage().right((size - _size) * _type->size()),
@@ -101,25 +101,21 @@ bool Vector::resize(const std::size_t size)
 
         _size = size;
 
-        return true;
+        return rainbow::memory::AllocationResult::Ok;
     }
 }
 
-rainbow::memory::Block Vector::push_back()
+rainbow::memory::Allocation Vector::push_back()
 {
-    if(resize(_size + 1))
-    {
-        return view().back();
-    }
-    else
-    {
-        return nullptr;
-    }
+    RAINBOW_RESULT_TRY(resize(_size + 1));
+
+    return view().back();
 }
 
 bool Vector::pop_back()
 {
-    return not empty() and resize(_size - 1);
+    return not empty() and
+           resize(_size - 1) == rainbow::memory::AllocationResult::Ok;
 }
 
 rainbow::views::raw::Vector Vector::view() const

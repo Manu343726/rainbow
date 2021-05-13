@@ -9,36 +9,109 @@ using namespace rainbow::memory::allocators;
 
 Pool::Pool(Block storage, const Parameters& parameters)
     : _nextBlock{storage.begin(), parameters.maxSize},
-      _blockSize{parameters.maxSize + sizeof(void*)},
-      _maxAlignment{parameters.maxAlignment},
+      _nodeRequirements{nodeRequirements(parameters)},
       _storage{std::move(storage)}
 {
-    assert(_storage.size() >= storageRequirements(parameters).size);
-    assert(
-        not storageRequirements(parameters).alignment or
-        _storage.isAligned(*storageRequirements(parameters).alignment));
-
     char* current = arithmeticPointer(_nextBlock.begin());
-    char* next    = current + _blockSize;
+    char* next    = current + blockSize();
 
     for(std::size_t i = 1; i < parameters.count; ++i)
     {
         bit_write(next, current);
         current = next;
-        next += _blockSize;
+        next += blockSize();
     }
 
     bit_write(nullptr, current);
 }
 
-AllocationRequirements
-    Pool::Pool::storageRequirements(const Parameters& parameters)
+AllocationRequirements Pool::minimalAllocationRequirements() const
 {
     AllocationRequirements result;
-    result.size      = (parameters.maxSize + sizeof(void*)) * parameters.count;
+
+    result.alignment = alignof(void*);
+    result.extraSize = sizeof(void*);
+
+    return result;
+}
+
+AllocationRequirements Pool::Pool::storageRequirements(
+    const Parameters& parameters,
+    const Allocator*  parentAllocator,
+    const Allocator*  managerAllocator)
+{
+    AllocationRequirements result;
+    const auto             nodeRequirements =
+        Pool::nodeRequirements(parameters, parentAllocator, managerAllocator);
+    result.size      = nodeRequirements.totalSize() * parameters.count;
+    result.alignment = nodeRequirements.alignment;
+
+    return result;
+}
+
+AllocationRequirements Pool::Pool::nodeRequirements(
+    const Parameters& parameters,
+    const Allocator*  parentAllocator,
+    const Allocator*  managerAllocator)
+{
+    if(not parameters.satisfiesExternalRequirements)
+    {
+        return nodeRequirements(adaptParametersToRequirements(
+            parameters, parentAllocator, managerAllocator));
+    }
+
+    AllocationRequirements result;
+    result.size      = parameters.maxSize;
     result.alignment = parameters.maxAlignment;
 
     return result;
+}
+
+Pool::Parameters Pool::Pool::adaptParametersToRequirements(
+    Parameters       parameters,
+    const Allocator* parentAllocator,
+    const Allocator* managerAllocator)
+{
+    if(parameters.satisfiesExternalRequirements)
+    {
+        return parameters;
+    }
+
+    AllocationRequirements externalRequirements;
+
+    if(parentAllocator != nullptr)
+    {
+        externalRequirements +=
+            parentAllocator->minimalAllocationRequirements();
+    }
+
+    if(managerAllocator != nullptr)
+    {
+        externalRequirements +=
+            managerAllocator->minimalAllocationRequirements();
+    }
+
+    parameters.maxAlignment = std::max(
+        std::max(parameters.maxAlignment, externalRequirements.alignment),
+        alignof(void*));
+
+    parameters.maxSize = rainbow::memory::nextAlignedSize(
+        parameters.maxSize + externalRequirements.extraSize + sizeof(void*),
+        parameters.maxAlignment);
+
+    parameters.satisfiesExternalRequirements = true;
+
+    return parameters;
+}
+
+std::size_t Pool::blockSize() const
+{
+    return _nodeRequirements.totalSize();
+}
+
+std::size_t Pool::blockAlignment() const
+{
+    return _nodeRequirements.alignment;
 }
 
 Allocator::Features Pool::features() const
@@ -57,41 +130,46 @@ Allocator::Info Pool::info() const
 
 std::size_t Pool::maxItemSize() const
 {
-    return _blockSize - sizeof(void*);
+    return blockSize() - sizeof(void*);
 }
 
-Block Pool::allocate(const std::size_t bytes)
+Allocation Pool::allocate(const std::size_t bytes)
 {
-    if(_nextBlock == nullptr or bytes > maxItemSize())
+    if(_nextBlock == nullptr)
     {
-        return nullptr;
+        return AllocationResult::NoSpaceLeft;
+    }
+
+    if(bytes > maxItemSize())
+    {
+        return AllocationResult::NoSpaceInNode;
     }
 
     const auto result = _nextBlock;
-    _nextBlock        = Block{bit_cast<void*>(_nextBlock.begin()), _blockSize};
+    _nextBlock        = Block{bit_cast<void*>(_nextBlock.begin()), blockSize()};
     return result;
 }
 
-Block Pool::allocateAligned(
+Allocation Pool::allocateAligned(
     const std::size_t bytes, [[maybe_unused]] const std::size_t boundary)
 {
-    if(boundary > _maxAlignment)
+    if(boundary > blockAlignment())
     {
-        return nullptr;
+        return AllocationResult::CannotAlign;
     }
 
     return allocate(bytes);
 }
 
-bool Pool::free(const rainbow::memory::Block& block)
+Deallocation Pool::free(const rainbow::memory::Block& block)
 {
     if(not _storage.contains(block))
     {
-        return false;
+        return DeallocationResult::UnknownNode;
     }
 
     bit_write(_nextBlock.begin(), block.begin());
     _nextBlock = block;
 
-    return true;
+    return DeallocationResult::Ok;
 }

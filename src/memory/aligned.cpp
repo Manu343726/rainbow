@@ -36,4 +36,16 @@ bool isAligned(void* pointer, const std::size_t boundary)
     return misalignment(pointer, boundary) == 0;
 }
 
+std::size_t nextAlignedSize(const std::size_t size, const std::size_t boundary)
+{
+    const std::size_t diff = size % boundary;
+
+    if(diff == 0)
+    {
+        return size;
+    }
+
+    return size + (boundary - diff);
+}
+
 } // namespace rainbow::memory

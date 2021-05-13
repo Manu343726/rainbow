@@ -12,19 +12,23 @@ template<typename UserAllocator>
 class Owning final : public rainbow::memory::Allocator
 {
 public:
+    static constexpr Features FEATURES =
+        UserAllocator::FEATURES | Features::OwningAllocator;
+
     template<typename... Args>
     Owning(
         rainbow::memory::Allocator& parentAllocator,
         rainbow::memory::Block      storage,
+        const std::size_t           storageAlignment,
         const Args&... args)
         : _parentAllocator{&parentAllocator},
           _storage{parentAllocator, std::move(storage)},
-          _allocator{_storage.get(), args...}
+          _allocator{_storage->aligned(storageAlignment), args...}
     {
     }
     Features features() const override
     {
-        return _allocator.features();
+        return FEATURES;
     }
 
     Info info() const override
@@ -35,25 +39,25 @@ public:
         return result;
     }
 
-    rainbow::memory::Block allocate(const std::size_t bytes) override
+    rainbow::memory::Allocation allocate(const std::size_t bytes) override
     {
         return _allocator.allocate(bytes);
     }
 
-    rainbow::memory::Block allocateAligned(
+    rainbow::memory::Allocation allocateAligned(
         const std::size_t bytes, const std::size_t boundary) override
     {
         return _allocator.allocateAligned(bytes, boundary);
     }
 
-    rainbow::memory::Block reallocate(
+    rainbow::memory::Allocation reallocate(
         const rainbow::memory::Block& original,
         const std::size_t             bytes) override
     {
         return _allocator.reallocate(original, bytes);
     }
 
-    rainbow::memory::Block reallocateAligned(
+    rainbow::memory::Allocation reallocateAligned(
         const rainbow::memory::Block& original,
         const std::size_t             bytes,
         const std::size_t             boundary) override
@@ -61,7 +65,8 @@ public:
         return reallocateAligned(original, bytes, boundary);
     }
 
-    bool free(const rainbow::memory::Block& block) override
+    rainbow::memory::Deallocation
+        free(const rainbow::memory::Block& block) override
     {
         return _allocator.free(block);
     }
@@ -72,24 +77,52 @@ private:
     UserAllocator               _allocator;
 };
 
+namespace detail
+{
 template<typename Allocator, typename... Args>
-rainbow::UniquePtr<Owning<Allocator>> makeOwning(
+rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwning(
+    rainbow::memory::Allocator& uniquePtrAllocator,
+    rainbow::memory::Allocator& parentAllocator,
+    rainbow::memory::Allocator* managerAllocator,
+    const Args&... args)
+{
+    const auto storageRequirements = Allocator::storageRequirements(
+        args..., &parentAllocator, managerAllocator);
+
+    RAINBOW_RESULT_TRY(storage, parentAllocator.allocate(storageRequirements));
+
+    return rainbow::makeUnique<Owning<Allocator>>(
+        uniquePtrAllocator,
+        parentAllocator,
+        std::move(storage),
+        storageRequirements.alignment,
+        args...);
+}
+} // namespace detail
+
+template<typename Allocator, typename... Args>
+rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwningThroughManager(
+    rainbow::memory::Allocator& uniquePtrAllocator,
+    rainbow::memory::Allocator& parentAllocator,
+    rainbow::memory::Allocator& managerAllocator,
+    const Args&... args)
+{
+    return rainbow::memory::allocators::detail::makeOwning<Allocator>(
+        uniquePtrAllocator, parentAllocator, &managerAllocator, args...);
+}
+
+template<typename Allocator, typename... Args>
+rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwning(
     rainbow::memory::Allocator& uniquePtrAllocator,
     rainbow::memory::Allocator& parentAllocator,
     const Args&... args)
 {
-    if(auto storage =
-           parentAllocator.allocate(Allocator::storageRequirements(args...)))
-    {
-        return rainbow::makeUnique<Owning<Allocator>>(
-            uniquePtrAllocator, parentAllocator, std::move(storage), args...);
-    }
-
-    return nullptr;
+    return rainbow::memory::allocators::detail::makeOwning<Allocator>(
+        uniquePtrAllocator, parentAllocator, nullptr, args...);
 }
 
 template<typename Allocator, typename... Args>
-rainbow::UniquePtr<Owning<Allocator>>
+rainbow::UniquePtrAllocation<Owning<Allocator>>
     makeOwning(rainbow::memory::Allocator& parentAllocator, const Args&... args)
 {
     return makeOwning(

@@ -21,6 +21,7 @@ std::ptrdiff_t misalignment(void* pointer, const std::size_t boundary);
 std::ptrdiff_t distanceToNextAligned(void* pointer, const std::size_t boundary);
 bool           isAligned(void* pointer, const std::size_t boundary);
 void*          alignedTo(void* baseAddress, const std::size_t boundary);
+std::size_t nextAlignedSize(const std::size_t size, const std::size_t boundary);
 
 } // namespace rainbow::memory
 

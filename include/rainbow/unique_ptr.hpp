@@ -4,6 +4,8 @@
 #include <memory>
 #include <rainbow/memory/allocator.hpp>
 #include <rainbow/object.hpp>
+#include <rainbow/object/new.hpp>
+#include <rainbow/result.hpp>
 #include <rainbow/type.hpp>
 #include <type_traits>
 
@@ -34,13 +36,16 @@ public:
 
     const rainbow::Type*        type() const;
     rainbow::memory::Allocator& allocator() const;
-    rainbow::raw::Object        get() const;
+    const rainbow::raw::Object& get() const;
+    const rainbow::raw::Object& operator*() const;
+    const rainbow::raw::Object* operator->() const;
     rainbow::raw::Object        release();
+    bool                        isNull() const;
 
     bool operator==(const UniquePtr& other) const;
     bool operator!=(const UniquePtr& other) const;
-    bool operator==(std::nullptr_t) const;
-    bool operator!=(std::nullptr_t) const;
+    bool operator==(void* other) const;
+    bool operator!=(void* other) const;
 
     explicit operator bool() const;
 
@@ -106,11 +111,19 @@ public:
     }
 };
 
+template<typename T>
+using UniquePtrAllocation =
+    rainbow::Result<rainbow::UniquePtr<T>, rainbow::memory::AllocationResult>;
+
 template<typename T, typename... Args>
-UniquePtr<T> makeUnique(rainbow::memory::Allocator& allocator, Args&&... args)
+UniquePtrAllocation<T>
+    makeUnique(rainbow::memory::Allocator& allocator, Args&&... args)
 {
-    return {
-        allocator, rainbow::new_<T>(allocator, std::forward<Args>(args)...)};
+    RAINBOW_RESULT_TRY(
+        allocation,
+        rainbow::object::new_<T>(allocator, std::forward<Args>(args)...));
+
+    return UniquePtr<T>{allocator, std::move(allocation)};
 }
 
 } // namespace rainbow

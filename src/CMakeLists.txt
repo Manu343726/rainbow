@@ -2,12 +2,16 @@ add_rainbow_library(rainbow)
 
 target_sources(rainbow PRIVATE
     memory/allocator.cpp
+    memory/allocation.cpp
     memory/aligned.cpp
     memory/block.cpp
+    memory/virtual.cpp
     memory/allocators/fixed_size.cpp
     memory/allocators/malloc.cpp
     memory/allocators/pool.cpp
     memory/allocators/hierarchical.cpp
+    memory/allocators/virtual_memory.cpp
+    memory/allocators/reserved_virtual_memory.cpp
     views/vector.cpp
     containers/vector.cpp
     type.cpp

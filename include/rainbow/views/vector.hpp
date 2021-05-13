@@ -3,6 +3,7 @@
 
 #include <rainbow/memory/block.hpp>
 #include <rainbow/object.hpp>
+#include <rainbow/object/iterator.hpp>
 #include <rainbow/type.hpp>
 #include <utility>
 
@@ -62,12 +63,12 @@ public:
         return at(i);
     }
 
-    rainbow::ObjectIterator<T> begin() const
+    rainbow::object::Iterator<T> begin() const
     {
         return {raw::Vector::begin()};
     }
 
-    rainbow::ObjectIterator<T> end() const
+    rainbow::object::Iterator<T> end() const
     {
         return {raw::Vector::end()};
     }

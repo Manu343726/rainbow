@@ -1,3 +1,4 @@
+#include "rainbow/result.hpp"
 #include <rainbow/memory/allocators/hierarchical.hpp>
 #ifndef NDEBUG
 #include <rainbow/iterator_traits.hpp>
@@ -16,6 +17,16 @@ Hierarchical::Hierarchical(
       _uniquePtrAllocator{&metadataNodeAllocator},
       _childAllocatorFactory{std::move(childAllocatorFactory)}
 {
+}
+
+AllocationRequirements Hierarchical::minimalAllocationRequirements() const
+{
+    AllocationRequirements result;
+
+    result.alignment = alignof(void*);
+    result.extraSize = sizeof(void*);
+
+    return result;
 }
 
 Allocator::Features Hierarchical::features() const
@@ -73,7 +84,7 @@ Allocator::Info Hierarchical::info() const
     return result;
 }
 
-Block Hierarchical::allocate(const std::size_t bytes)
+Allocation Hierarchical::allocate(const std::size_t bytes)
 {
     for(auto& allocator : _childrenAllocators.view())
     {
@@ -82,17 +93,21 @@ Block Hierarchical::allocate(const std::size_t bytes)
             rainbow::memory::bit_write(allocator.get(), block.begin());
             return userBlock(block);
         }
+        else if(block.result() != AllocationResult::NoSpaceLeft)
+        {
+            return block.result();
+        }
     }
 
-    if(grow())
-    {
-        return allocate(bytes);
-    }
 
-    return nullptr;
+    RAINBOW_RESULT_TRY(grow());
+
+    assert(_childrenAllocators.view().back() != nullptr);
+
+    return allocate(bytes);
 }
 
-Block Hierarchical::allocateAligned(
+Allocation Hierarchical::allocateAligned(
     const std::size_t bytes, const std::size_t boundary)
 {
     for(auto& allocator : _childrenAllocators.view())
@@ -103,17 +118,20 @@ Block Hierarchical::allocateAligned(
             rainbow::memory::bit_write(allocator.get(), block.begin());
             return userBlock(block);
         }
+        else if(block.result() != AllocationResult::NoSpaceLeft)
+        {
+            return block.result();
+        }
     }
 
-    if(grow())
-    {
-        return allocateAligned(bytes, boundary);
-    }
+    RAINBOW_RESULT_TRY(grow());
 
-    return nullptr;
+    assert(_childrenAllocators.view().back() != nullptr);
+
+    return allocateAligned(bytes, boundary);
 }
 
-Block Hierarchical::reallocate(
+Allocation Hierarchical::reallocate(
     const rainbow::memory::Block& original, const std::size_t bytes)
 {
     for(auto& allocator : _childrenAllocators.view())
@@ -124,17 +142,20 @@ Block Hierarchical::reallocate(
             rainbow::memory::bit_write(allocator.get(), block.begin());
             return userBlock(block);
         }
+        else if(block.result() != AllocationResult::NoSpaceLeft)
+        {
+            return block.result();
+        }
     }
 
-    if(grow())
-    {
-        return reallocate(original, bytes);
-    }
+    RAINBOW_RESULT_TRY(grow());
 
-    return nullptr;
+    assert(_childrenAllocators.view().back() != nullptr);
+
+    return reallocate(original, bytes);
 }
 
-Block Hierarchical::reallocateAligned(
+Allocation Hierarchical::reallocateAligned(
     const rainbow::memory::Block& original,
     const std::size_t             bytes,
     const std::size_t             boundary)
@@ -147,17 +168,20 @@ Block Hierarchical::reallocateAligned(
             rainbow::memory::bit_write(allocator.get(), block.begin());
             return userBlock(block);
         }
+        else if(block.result() != AllocationResult::NoSpaceLeft)
+        {
+            return block.result();
+        }
     }
 
-    if(grow())
-    {
-        return reallocateAligned(original, bytes, boundary);
-    }
+    RAINBOW_RESULT_TRY(grow());
 
-    return nullptr;
+    assert(_childrenAllocators.view().back() != nullptr);
+
+    return reallocateAligned(original, bytes, boundary);
 }
 
-bool Hierarchical::free(const rainbow::memory::Block& userBlock)
+Deallocation Hierarchical::free(const rainbow::memory::Block& userBlock)
 {
     assert(userBlock != nullptr);
     const auto block     = allocatedBlock(userBlock);
@@ -173,18 +197,14 @@ bool Hierarchical::free(const rainbow::memory::Block& userBlock)
     return allocator->free(block);
 }
 
-bool Hierarchical::grow()
+rainbow::memory::AllocationResult Hierarchical::grow()
 {
-    if(auto newAllocator =
-           _childAllocatorFactory(*_uniquePtrAllocator, *_parentAllocator))
-    {
-        if(_childrenAllocators.push_back(std::move(newAllocator)))
-        {
-            return true;
-        }
-    }
+    RAINBOW_RESULT_TRY(
+        newAllocatorAllocation,
+        _childAllocatorFactory(*_uniquePtrAllocator, *_parentAllocator, *this));
 
-    return false;
+    return _childrenAllocators.push_back(std::move(newAllocatorAllocation))
+        .result();
 }
 
 Block Hierarchical::userBlock(const Block& allocatedBlock)

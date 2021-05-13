@@ -57,9 +57,19 @@ Object UniquePtr::release()
     return std::exchange(_object, nullptr);
 }
 
-Object UniquePtr::get() const
+const Object& UniquePtr::get() const
 {
     return _object;
+}
+
+const Object& UniquePtr::operator*() const
+{
+    return get();
+}
+
+const Object* UniquePtr::operator->() const
+{
+    return &_object;
 }
 
 bool UniquePtr::operator==(const UniquePtr& other) const
@@ -72,17 +82,22 @@ bool UniquePtr::operator!=(const UniquePtr& other) const
     return !(*this == other);
 }
 
-bool UniquePtr::operator==(std::nullptr_t) const
+bool UniquePtr::operator==(void* other) const
+{
+    return get().begin() == other;
+}
+
+bool UniquePtr::operator!=(void* other) const
+{
+    return !(*this == other);
+}
+
+bool UniquePtr::isNull() const
 {
     return _object == nullptr;
 }
 
-bool UniquePtr::operator!=(std::nullptr_t) const
-{
-    return !(*this == nullptr);
-}
-
 UniquePtr::operator bool() const
 {
-    return (*this != nullptr);
+    return not isNull();
 }

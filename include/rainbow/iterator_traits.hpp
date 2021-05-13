@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <iterator>
 #include <rainbow/memory/block.hpp>
-#include <rainbow/object.hpp>
+#include <rainbow/object/iterator.hpp>
 
 namespace std
 {
@@ -20,7 +20,7 @@ struct iterator_traits<rainbow::memory::Block::Iterator>
 };
 
 template<typename T>
-struct iterator_traits<rainbow::ObjectIterator<T>>
+struct iterator_traits<rainbow::object::Iterator<T>>
 {
     using value_type        = T;
     using reference         = T&;
