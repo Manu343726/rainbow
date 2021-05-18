@@ -1,6 +1,7 @@
 #ifndef RAINBOW_MEMORY_ALLOCATORS_OWNING_HPP
 #define RAINBOW_MEMORY_ALLOCATORS_OWNING_HPP
 
+#include <optional>
 #include <rainbow/memory/allocator.hpp>
 #include <rainbow/memory/allocators/malloc.hpp>
 #include <rainbow/unique_ptr.hpp>
@@ -79,16 +80,14 @@ private:
 
 namespace detail
 {
+
 template<typename Allocator, typename... Args>
 rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwning(
-    rainbow::memory::Allocator& uniquePtrAllocator,
-    rainbow::memory::Allocator& parentAllocator,
-    rainbow::memory::Allocator* managerAllocator,
+    rainbow::memory::Allocator&   uniquePtrAllocator,
+    rainbow::memory::Allocator&   parentAllocator,
+    const AllocationRequirements& storageRequirements,
     const Args&... args)
 {
-    const auto storageRequirements = Allocator::storageRequirements(
-        args..., &parentAllocator, managerAllocator);
-
     RAINBOW_RESULT_TRY(storage, parentAllocator.allocate(storageRequirements));
 
     return rainbow::makeUnique<Owning<Allocator>>(
@@ -101,14 +100,42 @@ rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwning(
 } // namespace detail
 
 template<typename Allocator, typename... Args>
-rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwningThroughManager(
+rainbow::UniquePtrAllocation<Owning<Allocator>>
+    makeOwningConstrainedThroughManager(
+        rainbow::memory::Allocator& uniquePtrAllocator,
+        rainbow::memory::Allocator& parentAllocator,
+        rainbow::memory::Allocator& managerAllocator,
+        const Args&... args)
+{
+    return rainbow::memory::allocators::detail::makeOwning<Allocator>(
+        uniquePtrAllocator,
+        parentAllocator,
+        Allocator::storageRequirements(
+            args..., &parentAllocator, &managerAllocator),
+        args...);
+}
+
+template<typename Allocator, typename... Args>
+rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwningConstrained(
     rainbow::memory::Allocator& uniquePtrAllocator,
     rainbow::memory::Allocator& parentAllocator,
-    rainbow::memory::Allocator& managerAllocator,
     const Args&... args)
 {
     return rainbow::memory::allocators::detail::makeOwning<Allocator>(
-        uniquePtrAllocator, parentAllocator, &managerAllocator, args...);
+        uniquePtrAllocator,
+        parentAllocator,
+        Allocator::storageRequirements(args..., &parentAllocator),
+        args...);
+}
+
+template<typename Allocator, typename... Args>
+rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwningUnconstrained(
+    rainbow::memory::Allocator&                    uniquePtrAllocator,
+    rainbow::memory::Allocator&                    parentAllocator,
+    const rainbow::memory::AllocationRequirements& storageRequirements)
+{
+    return rainbow::memory::allocators::detail::makeOwning<Allocator>(
+        uniquePtrAllocator, parentAllocator, storageRequirements);
 }
 
 template<typename Allocator, typename... Args>
@@ -117,16 +144,40 @@ rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwning(
     rainbow::memory::Allocator& parentAllocator,
     const Args&... args)
 {
-    return rainbow::memory::allocators::detail::makeOwning<Allocator>(
-        uniquePtrAllocator, parentAllocator, nullptr, args...);
+    if constexpr(
+        rainbow::memory::features<Allocator>() &
+        rainbow::memory::AllocatorFeatures::ConstrainedAllocation)
+    {
+        return rainbow::memory::allocators::makeOwningConstrained<Allocator>(
+            uniquePtrAllocator, parentAllocator, args...);
+    }
+    else
+    {
+        return rainbow::memory::allocators::makeOwningUnconstrained<Allocator>(
+            uniquePtrAllocator, parentAllocator, args...);
+    }
 }
 
 template<typename Allocator, typename... Args>
-rainbow::UniquePtrAllocation<Owning<Allocator>>
-    makeOwning(rainbow::memory::Allocator& parentAllocator, const Args&... args)
+rainbow::UniquePtrAllocation<Owning<Allocator>> makeOwningThroughManager(
+    rainbow::memory::Allocator& uniquePtrAllocator,
+    rainbow::memory::Allocator& parentAllocator,
+    rainbow::memory::Allocator& managerAllocator,
+    const Args&... args)
 {
-    return makeOwning(
-        rainbow::memory::allocators::malloc(), parentAllocator, args...);
+    if constexpr(
+        rainbow::memory::features<Allocator>() &
+        rainbow::memory::AllocatorFeatures::ConstrainedAllocation)
+    {
+        return rainbow::memory::allocators::makeOwningConstrainedThroughManager<
+            Allocator>(
+            uniquePtrAllocator, parentAllocator, managerAllocator, args...);
+    }
+    else
+    {
+        return rainbow::memory::allocators::makeOwningUnconstrained<Allocator>(
+            uniquePtrAllocator, parentAllocator, args...);
+    }
 }
 
 } // namespace rainbow::memory::allocators

@@ -1,26 +1,29 @@
+#include <cstddef>
+#include <limits>
 #include <rainbow/memory/aligned.hpp>
 #include <rainbow/memory/allocator.hpp>
 
 using namespace rainbow::memory;
 
-std::size_t AllocationRequirements::totalSize() const
-{
-    return nextAlignedSize(size, alignment) + extraSize;
-}
-
-AllocationRequirements&
-    AllocationRequirements::operator+=(const AllocationRequirements& other)
-{
-    size += other.size;
-    extraSize += other.extraSize;
-    alignment = std::max(alignment, other.alignment);
-
-    return *this;
-}
-
 AllocationRequirements Allocator::minimalAllocationRequirements() const
 {
     return {};
+}
+
+AllocationRequirements Allocator::maxAllocationRequirements() const
+{
+    auto result      = minimalAllocationRequirements();
+    result.size      = std::numeric_limits<std::size_t>::max();
+    result.alignment = alignof(std::max_align_t);
+
+    return result;
+}
+
+bool Allocator::fits(
+    const rainbow::memory::AllocationRequirements& requirements) const
+{
+    return minimalAllocationRequirements() >= requirements and
+           requirements <= maxAllocationRequirements();
 }
 
 Allocation Allocator::allocate(const AllocationRequirements& requirements)

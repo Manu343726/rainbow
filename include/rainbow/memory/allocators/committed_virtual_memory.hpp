@@ -24,8 +24,9 @@ public:
         not(CommitAllocator::FEATURES & Features::InPlaceBookKeeping),
         "The allocator used for the commit strategy must not use managed memory to store bookkeeping data");
 
-    static constexpr Features FEATURES =
-        CommitAllocator::FEATURES | Features::OwningAllocator;
+    static constexpr Features FEATURES = CommitAllocator::FEATURES |
+                                         Features::OwningAllocator |
+                                         Features::ConstrainedAllocation;
 
     template<typename... Args>
     CommittedVirtualMemory(
@@ -33,9 +34,7 @@ public:
         : _commitAllocator{
               rainbow::memory::allocators::reservedVirtualMemory(),
               std::move(reservedVirtualMemory),
-              rainbow::memory::allocators::reservedVirtualMemory()
-                  .minimalAllocationRequirements()
-                  .alignment,
+              rainbow::memory::pageAlignment(),
               args...}
     {
     }
@@ -50,25 +49,31 @@ public:
         return _commitAllocator.info();
     }
 
+    AllocationRequirements minimalAllocationRequirements() const override
+    {
+        return rainbow::memory::pageAlignedRequirements();
+    }
+
     rainbow::memory::Allocation allocate(const std::size_t bytes) override
     {
-        RAINBOW_RESULT_TRY(result, _commitAllocator.allocate(bytes));
-
-        if(not rainbow::memory::commitVirtualMemory(result))
-        {
-            return AllocationResult::CannotCommit;
-        }
-
-        return result;
+        return allocateAligned(bytes, rainbow::memory::pageAlignment());
     }
 
     rainbow::memory::Allocation allocateAligned(
         const std::size_t bytes, const std::size_t boundary) override
     {
+        const std::size_t pageAlignment = rainbow::memory::pageAlignment();
+
+        if(boundary < pageAlignment)
+        {
+            return AllocationResult::RequirementsFailed_Alignment;
+        }
+
         RAINBOW_RESULT_TRY(
             result, _commitAllocator.allocateAligned(bytes, boundary));
 
-        if(not rainbow::memory::commitVirtualMemory(result))
+        if(not rainbow::memory::commitVirtualMemory(
+               result.aligned(pageAlignment)))
         {
             return AllocationResult::CannotCommit;
         }
@@ -79,7 +84,8 @@ public:
     rainbow::memory::Deallocation
         free(const rainbow::memory::Block& block) override
     {
-        RAINBOW_RESULT_TRY(rainbow::memory::unCommitVirtualMemory(block));
+        RAINBOW_RESULT_TRY(rainbow::memory::unCommitVirtualMemory(
+            block.aligned(rainbow::memory::pageAlignment())));
         return _commitAllocator.free(block);
     }
 

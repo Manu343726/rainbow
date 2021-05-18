@@ -35,6 +35,17 @@ AllocationRequirements Pool::minimalAllocationRequirements() const
     return result;
 }
 
+AllocationRequirements Pool::maxAllocationRequirements() const
+{
+    AllocationRequirements result;
+
+    result.alignment = _nodeRequirements.alignment;
+    result.extraSize = sizeof(void*);
+    result.size      = maxItemSize();
+
+    return result;
+}
+
 AllocationRequirements Pool::Pool::storageRequirements(
     const Parameters& parameters,
     const Allocator*  parentAllocator,

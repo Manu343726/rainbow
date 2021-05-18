@@ -33,7 +33,6 @@ Allocation FixedSize::allocate(const std::size_t bytes)
 
     return _storage(_used - bytes, _used);
 }
-
 Allocation FixedSize::allocateAligned(
     const std::size_t bytes, const std::size_t boundary)
 {

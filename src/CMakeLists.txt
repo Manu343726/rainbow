@@ -3,6 +3,7 @@ add_rainbow_library(rainbow)
 target_sources(rainbow PRIVATE
     memory/allocator.cpp
     memory/allocation.cpp
+    memory/allocation_requirements.cpp
     memory/aligned.cpp
     memory/block.cpp
     memory/virtual.cpp

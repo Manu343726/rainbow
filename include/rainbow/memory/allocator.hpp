@@ -5,6 +5,8 @@
 #include <optional>
 #include <rainbow/memory/aligned.hpp>
 #include <rainbow/memory/allocation.hpp>
+#include <rainbow/memory/allocation_requirements.hpp>
+#include <rainbow/memory/allocator_features.hpp>
 #include <rainbow/memory/block.hpp>
 #include <rainbow/memory/deallocation.hpp>
 #include <type_traits>
@@ -12,32 +14,10 @@
 namespace rainbow::memory
 {
 
-struct AllocationRequirements
-{
-    std::size_t size      = 0;
-    std::size_t extraSize = 0;
-    std::size_t alignment = 1;
-
-    std::size_t totalSize() const;
-
-    AllocationRequirements& operator+=(const AllocationRequirements& other);
-};
-
 class Allocator
 {
 public:
-    enum class Features
-    {
-        Allocate           = 0b1,
-        AllocateAligned    = 0b10,
-        Reallocate         = 0b100,
-        ReallocateAligned  = 0b1000,
-        Free               = 0b10000,
-        AllocateFixed      = 0b100000,
-        GrowingAllocator   = 0b1000000,
-        OwningAllocator    = 0b10000000,
-        InPlaceBookKeeping = 0b100000000
-    };
+    using Features = rainbow::memory::AllocatorFeatures;
 
     struct Info
     {
@@ -50,9 +30,14 @@ public:
 
     virtual ~Allocator() = default;
 
-    virtual Features               features() const = 0;
-    virtual Info                   info() const     = 0;
-    virtual AllocationRequirements minimalAllocationRequirements() const;
+    virtual Features features() const = 0;
+    virtual Info     info() const     = 0;
+    virtual rainbow::memory::AllocationRequirements
+        minimalAllocationRequirements() const;
+    virtual rainbow::memory::AllocationRequirements
+        maxAllocationRequirements() const;
+    virtual bool
+        fits(const rainbow::memory::AllocationRequirements& requirements) const;
 
     rainbow::memory::Allocation
         allocate(const rainbow::memory::AllocationRequirements& requirements);
@@ -70,23 +55,6 @@ public:
     virtual rainbow::memory::Deallocation
         free(const rainbow::memory::Block& block);
 };
-
-
-constexpr Allocator::Features
-    operator|(const Allocator::Features lhs, const Allocator::Features rhs)
-{
-    return static_cast<Allocator::Features>(
-        static_cast<std::underlying_type_t<Allocator::Features>>(lhs) |
-        static_cast<std::underlying_type_t<Allocator::Features>>(rhs));
-}
-
-constexpr bool
-    operator&(const Allocator::Features lhs, const Allocator::Features rhs)
-{
-    return static_cast<bool>(
-        static_cast<std::underlying_type_t<Allocator::Features>>(lhs) &
-        static_cast<std::underlying_type_t<Allocator::Features>>(rhs));
-}
 
 } // namespace rainbow::memory
 

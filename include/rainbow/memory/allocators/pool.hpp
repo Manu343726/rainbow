@@ -11,7 +11,7 @@ class Pool final : public rainbow::memory::Allocator
 public:
     static constexpr Features FEATURES =
         Features::Allocate | Features::AllocateAligned | Features::Free |
-        Features::InPlaceBookKeeping;
+        Features::InPlaceBookKeeping | Features::ConstrainedAllocation;
 
     struct Parameters
     {
@@ -41,6 +41,7 @@ public:
     Features               features() const override;
     Info                   info() const override;
     AllocationRequirements minimalAllocationRequirements() const override;
+    AllocationRequirements maxAllocationRequirements() const override;
 
     rainbow::memory::Allocation allocate(const std::size_t bytes) override;
     rainbow::memory::Allocation allocateAligned(

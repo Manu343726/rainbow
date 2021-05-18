@@ -55,7 +55,8 @@ int main()
         rainbow::memory::Block{storage}};
     rainbow::memory::allocators::CommittedVirtualMemory<
         rainbow::memory::allocators::FixedSize>
-        lazyFixedSize{rainbow::memory::reserveVirtualMemory(1024)};
+        lazyFixedSize{rainbow::memory::reserveVirtualMemory(
+            rainbow::memory::pageSize() * 100000000)};
 
     const auto poolFactory = [](rainbow::memory::Allocator& uniquePtrAllocator,
                                 rainbow::memory::Allocator& parentAllocator,
@@ -78,16 +79,29 @@ int main()
     rainbow::memory::allocators::Hierarchical hierarchical{
         rainbow::memory::allocators::virtualMemory(), poolFactory};
 
-    for(int i = 0; i < 1000000000; ++i)
+    for(int i = 0; i < 1000; ++i)
     {
         using Type  = std::array<char, 1024>;
         auto result = rainbow::makeUnique<Type>(hierarchical);
 
         if(not result)
         {
+            std::cout << rainbow::memory::toString(result.result()) << "\n";
             std::exit(EXIT_FAILURE);
         }
 
         result.release();
+
+        struct alignas(4096) Page
+        {
+            char data[4096 + 128];
+        };
+
+        static_assert(alignof(Page) == 4096);
+        static_assert(sizeof(Page) == 4096 * 2);
+
+        std::cout << rainbow::memory::toString(
+                         rainbow::makeUnique<Page>(lazyFixedSize).result())
+                  << "\n";
     }
 }

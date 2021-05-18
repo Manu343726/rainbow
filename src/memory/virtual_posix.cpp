@@ -1,6 +1,7 @@
 #include <cassert>
 #include <rainbow/memory/virtual.hpp>
 #include <sys/mman.h>
+#include <unistd.h>
 
 namespace rainbow::memory
 {
@@ -63,6 +64,24 @@ Deallocation freeVirtualMemory(const Block& block)
 {
     // Uncommit is not needed, handled by munmap() itself.
     return releaseVirtualMemory(block);
+}
+
+std::size_t pageSize()
+{
+    return ::sysconf(_SC_PAGESIZE);
+}
+
+std::size_t pageAlignment()
+{
+    return pageSize();
+}
+
+AllocationRequirements pageAlignedRequirements()
+{
+    AllocationRequirements result;
+    result.alignment = pageAlignment();
+
+    return result;
 }
 
 } // namespace rainbow::memory
