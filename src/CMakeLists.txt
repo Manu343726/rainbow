@@ -8,6 +8,7 @@ target_sources(rainbow PRIVATE
     memory/block.cpp
     memory/virtual.cpp
     memory/allocators/fixed_size.cpp
+    memory/allocators/stack.cpp
     memory/allocators/malloc.cpp
     memory/allocators/pool.cpp
     memory/allocators/hierarchical.cpp
